@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QRスキャン記録</title>
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#ffffff" />
+  <style>
+    body { font-family: sans-serif; text-align: center; padding: 20px; }
+    #reader { width: 100%; max-width: 400px; margin: auto; }
+    #result { font-size: 1.5em; margin: 10px 0; }
+    button { font-size: 1.2em; padding: 10px 20px; }
+  </style>
+</head>
+<body>
+  <h2>QRスキャン記録</h2>
+  <div id="reader"></div>
+  <div id="result">QRをかざしてください</div>
+  <button id="sendBtn" disabled>送信</button>
+
+  <script>
+    let scannedData = "";
+    const endpoint = "https://script.google.com/macros/s/AKfycbw7HrYGE6Ndtt10rnyFr-_G7TrJMNiWOjhjeM8X_ZN5KzYsKlxfENLYBNLD3NkAbz8Z/exec";
+
+    const html5QrCode = new Html5Qrcode("reader");
+    const qrConfig = { fps: 10, qrbox: 250 };
+
+    function startScanner() {
+      html5QrCode.start(
+        { facingMode: "environment" },
+        qrConfig,
+        (decodedText) => {
+          html5QrCode.stop();
+          scannedData = decodedText.trim();
+          document.getElementById("result").innerText = `読み取り: ${scannedData}`;
+          document.getElementById("sendBtn").disabled = false;
+        },
+        (error) => { /* 無視でOK */ }
+      );
+    }
+
+    document.getElementById("sendBtn").addEventListener("click", () => {
+      fetch(endpoint, {
+        method: "POST",
+        body: JSON.stringify({ value: scannedData }),
+        headers: { "Content-Type": "application/json" },
+      })
+      .then(res => res.text())
+      .then(res => {
+        if (res === "OK") {
+          document.getElementById("result").innerText = `送信完了: ${scannedData}`;
+        } else if (res === "DUPLICATE") {
+          document.getElementById("result").innerText = `既に記録済み: ${scannedData}`;
+        } else {
+          document.getElementById("result").innerText = `送信失敗`;
+        }
+
+        document.getElementById("sendBtn").disabled = true;
+        setTimeout(() => {
+          scannedData = "";
+          document.getElementById("result").innerText = "QRをかざしてください";
+          startScanner();
+        }, 1500);
+      });
+    });
+
+    startScanner();
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js');
+      });
+    }
+  </script>
+</body>
+</html>
